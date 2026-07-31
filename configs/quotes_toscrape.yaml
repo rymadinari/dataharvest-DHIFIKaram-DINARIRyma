@@ -1,0 +1,18 @@
+url: https://quotes.toscrape.com/page/1/
+pagination:
+  pattern: /page/{n}/
+  start: 1
+  max_pages: 10
+selectors:
+  titre: .quote .text
+  url: .quote span a
+  auteur: .quote .author
+  tags: .quote .tags
+fetcher:
+  delay: 1.0
+  retries: 3
+  timeout: 15
+  user_agent: "DataHarvest/1.0 (+contact@ipssi.fr)"
+store:
+  backend: json
+  path: output/quotes_toscrape.json
