@@ -1,128 +1,411 @@
 # DataHarvest
 
-Framework de scraping modulaire, generique et configurable — projet final
-Web Scraping, IPSSI, Master Dev Data & IA (4e annee).
+Framework de scraping modulaire, générique et configurable développé dans le cadre du projet final de **Web Scraping**.
 
-Binome : **Prenom1 NOM1** & **Prenom2 NOM2**
+**Master Dev, Data & IA – 4ème année**  
+**IPSSI Nice**
 
-## 1. Presentation
+---
 
-DataHarvest permet de scraper n'importe quel site HTML statique en
-modifiant uniquement un fichier de configuration YAML/JSON — sans toucher
-au code source. Le framework est decoupe en 5 composants independants,
-relies exclusivement par injection de dependances (jamais d'import direct
-entre composants metier).
+# Auteurs
 
-## 2. Architecture
+- **Karam DHIFI**
+- **Ryma DINARI**
+
+---
+
+# Présentation
+
+**DataHarvest** est un framework Python conçu pour automatiser l'extraction de données depuis des sites web HTML statiques.
+
+Contrairement à un script de scraping classique développé pour un seul site, DataHarvest repose sur une architecture modulaire où chaque composant possède une responsabilité précise.
+
+Grâce à un fichier de configuration **YAML ou JSON**, il est possible d'adapter le framework à un nouveau site sans modifier le code source.
+
+L'objectif principal est de proposer un outil :
+
+- réutilisable ;
+- extensible ;
+- configurable ;
+- facilement maintenable.
+
+---
+
+# Fonctionnalités
+
+DataHarvest propose les fonctionnalités suivantes :
+
+- Chargement de configuration YAML ou JSON
+- Téléchargement des pages avec Requests
+- Gestion des middlewares
+- Logging des requêtes HTTP
+- Retry automatique avec backoff exponentiel
+- Pagination configurable
+- Extraction HTML avec sélecteurs CSS
+- Validation des données collectées
+- Stockage multi-format :
+  - SQLite
+  - JSON
+  - CSV
+- Export entre différents formats
+- Interface CLI avec argparse
+- Architecture modulaire orientée composants
+- Tests unitaires avec Pytest
+
+---
+
+# Architecture du framework
 
 ```
-Config (YAML/JSON)
-        |
-        v
-   Orchestrator
-        |-- Fetcher [+ chaine de Middleware] --> HTML brut
-        |-- Pipeline.process(html) -------------> list[dict]
-        |-- Validator.validate(items) -----------> items valides / rejetes
-        '-- Store.save(items) -------------------> csv / sqlite / json
+                 Configuration YAML
+                         |
+                         v
+
+                 +---------------+
+                 |    Config     |
+                 +---------------+
+                         |
+                         v
+
+                 +---------------+
+                 | Orchestrator  |
+                 +---------------+
+                   /     |      \
+                  /      |       \
+                 v       v        v
+
+             Fetcher  Pipeline  Validator
+                 |
+                 v
+
+          Middleware Chain
+
+          - LoggingMiddleware
+          - RetryMiddleware
+          - RateLimitMiddleware
+          
+                 |
+                 v
+
+               Store
 ```
 
+---
+
+# Structure du projet
+
 ```
-dataharvest-prenom1-prenom2/
-|-- dataharvest/
-|   |-- __init__.py        # version = '1.0.0'
-|   |-- config.py          # Config -- chargement + validation YAML/JSON
-|   |-- fetcher.py         # Fetcher -- HTTP + retries via requests.Session
-|   |-- pipeline.py        # BasePipeline (ABC), GenericPipeline, PaginationPipeline
-|   |-- validator.py       # Validator -- filtre les items avant stockage
-|   |-- store.py           # Store -- backends csv / sqlite / json
-|   |-- orchestrator.py    # Orchestrator -- assemble tous les composants
-|   |-- middleware.py      # BaseMiddleware, Logging/Retry/RateLimit
-|   '-- app.py             # CLI (crawl / export / validate)
-|-- tests/                 # pytest, couverture >= 80%
-|-- configs/               # un fichier YAML par site scrape
-|-- output/                # fichiers de sortie (ignores par git)
-|-- README.md
-|-- requirements.txt
-'-- .gitignore
+dataharvest/
+
+├── dataharvest/
+│   ├── __init__.py
+│   ├── app.py
+│   ├── config.py
+│   ├── fetcher.py
+│   ├── middleware.py
+│   ├── orchestrator.py
+│   ├── pipeline.py
+│   ├── store.py
+│   └── validator.py
+│
+├── configs/
+│
+├── tests/
+│
+├── output/
+│
+├── requirements.txt
+├── README.md
+└── .gitignore
 ```
 
-### Pourquoi cette architecture ?
+---
 
-- **Composants decouples** : chaque brique (Fetcher, Pipeline, Validator,
-  Store) est testable isolement, sans dependre des autres — on peut
-  remplacer le backend de stockage sans toucher au reste.
-- **BasePipeline en ABC** : garantit a l'Orchestrator que toute pipeline
-  concrete expose `process()` et `next_page_url()` avec la bonne
-  signature ; une classe qui oublie une methode ne peut simplement pas
-  etre instanciee (erreur a la construction, pas a l'execution).
-- **Pattern middleware pour le Fetcher** : permet d'ajouter logging,
-  retry ou rate-limiting sans modifier `Fetcher.fetch()`. Chaque
-  middleware ne connait que `(url, headers)` / `response`.
-- **Injection de dependances** : l'Orchestrator recoit un `Config` en
-  entree et construit lui-meme ses composants ; en test, on peut injecter
-  un `Fetcher` mocke sans toucher au reste de la chaine.
+# Architecture des composants
 
-## 3. Installation
+## Config
+
+Le composant **Config** est responsable du chargement et de la validation des fichiers de configuration.
+
+Responsabilités :
+
+- Lecture des fichiers YAML/JSON
+- Vérification des clés obligatoires
+- Mise à disposition des paramètres du scraping
+
+---
+
+## Fetcher
+
+Le **Fetcher** gère la récupération des pages web.
+
+Fonctionnalités :
+
+- Requêtes HTTP avec Requests
+- Gestion du User-Agent
+- Utilisation des middlewares
+- Gestion automatique des erreurs
+- Retry avec backoff exponentiel
+
+---
+
+## Pipeline
+
+Le **Pipeline** transforme le HTML brut en données structurées.
+
+Implémentations disponibles :
+
+- `GenericPipeline`
+- `PaginationPipeline`
+
+Il utilise les sélecteurs CSS définis dans les fichiers YAML.
+
+---
+
+## Validator
+
+Le **Validator** vérifie la qualité des données extraites.
+
+Contrôles réalisés :
+
+- Présence des champs obligatoires
+- Validation des URLs
+- Vérification de longueur minimale
+- Rejet des données invalides
+
+---
+
+## Store
+
+Le composant **Store** permet la sauvegarde des résultats.
+
+Backends supportés :
+
+- SQLite
+- JSON
+- CSV
+
+Il permet également l'export entre différents formats.
+
+---
+
+# Installation
+
+## Cloner le projet
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+git clone <url-du-repository>
+cd dataharvest
+```
+
+## Installer les dépendances
+
+```bash
 pip install -r requirements.txt
 ```
 
-## 4. Usage
+---
+
+# Utilisation
+
+## Scraper un site
+
+Exemple avec Books To Scrape :
 
 ```bash
-# Scraper un site
-python -m dataharvest crawl --config configs/example_blog.yaml
-
-# Mode dry-run (fetch + parse la 1ere page seulement, sans stocker)
-python -m dataharvest crawl --config configs/example_blog.yaml --dry-run
-
-# Valider un fichier de config sans scraper
-python -m dataharvest validate --config configs/example_blog.yaml
-
-# Exporter un store vers un autre backend
-python -m dataharvest export --from output/articles.db --to output/articles.csv
+python -m dataharvest crawl --config configs/books_toscrape.yaml
 ```
 
-## 5. Sites scrapes (5 minimum, >= 2 niveaux)
+---
 
-| Config | Site | Niveau | Backend |
+## Mode Dry Run
+
+Le mode `--dry-run` permet de tester l'extraction sans enregistrer les résultats.
+
+```bash
+python -m dataharvest crawl --config configs/books_toscrape.yaml --dry-run
+```
+
+---
+
+## Vérifier une configuration
+
+```bash
+python -m dataharvest validate --config configs/books_toscrape.yaml
+```
+
+---
+
+## Exporter les données
+
+Exemple SQLite vers CSV :
+
+```bash
+python -m dataharvest export \
+--from output/books.db \
+--to output/books.csv
+```
+
+---
+
+# Sites testés
+
+DataHarvest a été testé sur plusieurs sites présentant différents niveaux de difficulté.
+
+| Site | Niveau | Données extraites | Stockage |
 |---|---|---|---|
-| `configs/books_toscrape.yaml` | books.toscrape.com | N1 | sqlite |
-| `configs/quotes_toscrape.yaml` | quotes.toscrape.com | N1 | json |
-| `configs/pypi_search.yaml` | pypi.org/search | N2 | csv |
-| `configs/openfoodfacts.yaml` | fr.openfoodfacts.org | N2 | sqlite |
-| `configs/example_blog.yaml` | blogdumoderateur.com | N3 | sqlite |
+| books.toscrape.com | Niveau 1 | Livres, prix, disponibilité | SQLite |
+| quotes.toscrape.com | Niveau 1 | Citations, auteurs, tags | JSON |
+| fr.wikipedia.org | Niveau 2 | Données structurées | JSON |
+| blogdumoderateur.com | Niveau 3 | Articles, dates, catégories | SQLite |
+| github.com/trending | Niveau 4 | Dépôts, langages, étoiles | CSV |
 
-> Note : les selecteurs CSS de `books_toscrape.yaml` et
-> `openfoodfacts.yaml` sont a verifier/ajuster avec les DevTools sur le
-> vrai DOM avant la restitution finale — ils ont ete ecrits sans acces
-> reseau au site cible.
+Cette diversité permet de démontrer que DataHarvest peut fonctionner sur différentes structures HTML sans modification du code source.
 
-## 6. Tests
+---
 
-```bash
-pytest -m "not integration" --cov=dataharvest --cov-report=term-missing -v
+# Exemple de configuration YAML
+
+```yaml
+url: https://books.toscrape.com/
+
+pagination:
+  pattern: /catalogue/page-{n}.html
+  start: 1
+  max_pages: 5
+
+selectors:
+  titre: article.product_pod h3 a
+  url: article.product_pod h3 a
+  prix: p.price_color
+
+fetcher:
+  delay: 1
+  retries: 3
+  timeout: 15
+  user_agent: DataHarvest/1.0
+
+store:
+  backend: sqlite
+  path: output/books.db
 ```
 
-Couverture actuelle : **90 %** (36 tests unitaires). Le test
-d'integration (`tests/test_integration.py::test_orchestrator_run_on_real_site`)
-est marque `@pytest.mark.integration` et necessite une connexion internet ;
-il est exclu par defaut de la commande ci-dessus.
+---
 
-## 7. Extensions implementees
+# Flux de données
 
-- `RateLimitMiddleware` (bonus 3.2 / Extension C) : delai minimum garanti
-  entre deux requetes vers le meme domaine, teste dans
-  `tests/test_middleware.py`.
+```
+Configuration YAML
 
-## 8. Limites connues (hors perimetre volontaire)
+        |
+        v
 
-- Pas de support JavaScript/rendu dynamique (pas de Selenium/Playwright
-  integre par defaut).
-- Pas d'execution asynchrone (contrairement a Scrapy/Twisted) — voir le
-  rapport technique, section 3, pour le calcul d'impact sur les
-  performances.
-- Detection du numero de page courant basee sur le pattern d'URL fourni
-  en config (pas de parsing du DOM pour trouver le lien "page suivante").
+      Config
+
+        |
+        v
+
+   Orchestrator
+
+        |
+        |
+ -------------------------
+ |          |            |
+ v          v            v
+
+Fetcher  Pipeline   Validator
+
+        |
+        v
+
+      Store
+
+        |
+        v
+
+ SQLite / JSON / CSV
+```
+
+---
+
+# Tests
+
+Le projet contient :
+
+- Tests unitaires
+- Test d'intégration
+
+Lancer les tests :
+
+```bash
+pytest
+```
+
+Avec couverture :
+
+```bash
+pytest --cov=dataharvest
+```
+
+---
+
+# Technologies utilisées
+
+- Python 3
+- Requests
+- BeautifulSoup4
+- PyYAML
+- SQLite3
+- JSON
+- CSV
+- Pytest
+- Argparse
+
+---
+
+# Limites du projet
+
+DataHarvest est volontairement limité aux sites HTML statiques.
+
+Fonctionnalités non prises en charge :
+
+- Rendu JavaScript côté client
+- Selenium
+- Playwright
+- Scraping asynchrone
+- Authentification complexe
+
+---
+
+# Perspectives d'évolution
+
+Améliorations possibles :
+
+- Support Playwright pour les sites dynamiques
+- Scraping asynchrone
+- Système de notification
+- Planificateur automatique
+- Monitoring des changements HTML
+- Publication sur PyPI
+
+---
+
+# Projet académique
+
+Ce projet a été réalisé dans le cadre du module **Web Scraping** du :
+
+**Master Dev, Data & IA – IPSSI Nice**
+
+L'objectif était de concevoir un framework de scraping modulaire en appliquant des concepts avancés de conception logicielle :
+
+- Injection de dépendances
+- Middleware
+- Architecture découplée
+- Validation des données
+- Stockage multi-backend
+
+---
+
+# Licence
+
+Projet réalisé uniquement à des fins pédagogiques dans le cadre de la formation IPSSI.

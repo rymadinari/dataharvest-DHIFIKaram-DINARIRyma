@@ -5,7 +5,6 @@ __pycache__/
 *.csv
 *.json
 !configs/*.json
-output/
 .pytest_cache/
 .coverage
 htmlcov/
